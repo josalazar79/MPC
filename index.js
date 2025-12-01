@@ -209,7 +209,7 @@ app.post('/whatsapp', async (req, res) => {
       session.state = 'PERS_ZONE';
       twiml.message(
         'Perfecto.\n' +
-        '👉 ¿En qué *distrito o zona* te encuentras? (Ej: San José centro, Desamparados, etc.)'
+        '👉 ¿En qué *distrito o zona* te encuentras? (Ej: Río Clao Centro, Golfito, Ciudad Neily, etc.)'
       );
       break;
     }
@@ -511,3 +511,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('MPC JSALA WhatsApp bot escuchando en puerto ' + PORT);
 });
+
