@@ -1,17 +1,21 @@
 {
-  "name": "mpc-jsala-bot",
+  "name": "mpc-jsala-whatsapp-bot",
   "version": "1.0.0",
-  "description": "Chatbot WhatsApp MPC Jsala - Twilio",
+  "description": "WhatsApp chatbot para MPC Jsala con Twilio y máquina de estados",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=18"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "twilio": "^4.21.0"
+    "twilio": "^4.21.0",
+    "qs": "^6.11.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }
-
