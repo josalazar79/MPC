@@ -1,7 +1,7 @@
 {
   "name": "mpc-jsala-whatsapp-bot",
   "version": "1.0.0",
-  "description": "Chatbot de WhatsApp para MPC JSALA (mantenimiento y reparación de computadoras portátiles) usando Twilio.",
+  "description": "Chatbot de WhatsApp para MPC JSALA (mantenimiento, reparación y soporte remoto de computadoras portátiles) usando Twilio y Node.js.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -11,8 +11,9 @@
     "whatsapp",
     "twilio",
     "chatbot",
-    "mpc-jsala",
-    "nodejs"
+    "nodejs",
+    "soporte tecnico",
+    "mpc-jsala"
   ],
   "author": "MPC JSALA",
   "license": "MIT",
