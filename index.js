@@ -10,10 +10,31 @@ app.use(bodyParser.urlencoded({ extended: false }));
 const MessagingResponse = twilio.twiml.MessagingResponse;
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
-// Memoria simple de sesiones (para producción idealmente usar Redis, DB, etc.)
+// Memoria simple en RAM (para producción ideal: Redis / BD)
 const sessions = {};
+
+// Número de WhatsApp del operador (para recibir los datos del cliente)
 const OPERATOR_WHATSAPP = process.env.OPERATOR_WHATSAPP || 'whatsapp:+50688998177';
 
+// Texto del menú principal
+const mainMenuText =
+  '👋 Hola, soy el asistente virtual de *MPC JSALA*.\n' +
+  'Te ayudo con *mantenimiento y reparación de computadoras portátiles*, soporte remoto y citas en taller.\n\n' +
+  '🕐 *Horario de atención con cita:*\n' +
+  '• L–V: 4:00 p.m. – 9:00 p.m.\n' +
+  '• Sábado: 9:00 a.m. – 9:00 p.m.\n\n' +
+  '📋 *Menú principal MPC JSALA*\n' +
+  'Responde solo con el número de la opción:\n\n' +
+  '1️⃣ Mantenimiento / limpieza de computadora\n' +
+  '2️⃣ Consulta técnica rápida\n' +
+  '3️⃣ Agendar cita en taller\n' +
+  '4️⃣ Estado de un servicio en curso\n' +
+  '5️⃣ Hablar con un asesor\n\n' +
+  '✳️ En cualquier momento puedes escribir *menu* para volver aquí.';
+
+// ---------- Funciones de utilidad ----------
+
+// Crea o devuelve la sesión de un número
 function getSession(from) {
   if (!sessions[from]) {
     sessions[from] = {
@@ -27,23 +48,34 @@ function getSession(from) {
   return sessions[from];
 }
 
+// Borra la sesión de un número
 function resetSession(from) {
   delete sessions[from];
 }
 
-// Utilidad: limpiar texto
+// Limpia texto de entrada
 function cleanText(t) {
   return (t || '').trim();
 }
 
-// Detectar si podría ser remoto (muy simple, basado en palabras clave)
+// Lógica simple para saber si podría ser soporte remoto
 function isRemoteCandidate(description) {
   const txt = (description || '').toLowerCase();
-  const keywords = ['licencia', 'office', 'antivirus', 'formato', 'instalar programa', 'software', 'activación'];
+  const keywords = [
+    'licencia',
+    'office',
+    'antivirus',
+    'formato',
+    'instalar programa',
+    'software',
+    'activación',
+    'activar office',
+    'activar windows'
+  ];
   return keywords.some(k => txt.includes(k));
 }
 
-// Construir mensaje interno para el operador
+// Construye el mensaje interno para el operador
 function buildInternalMessage(from, session) {
   const p = session.personal || {};
   const t = session.technical || {};
@@ -70,6 +102,9 @@ function buildInternalMessage(from, session) {
     `📅 Preferencia de cita: ${e.preferenciaCita || 'N/D'}`,
     `🔍 Estado servicio (nombre/orden/fecha): ${e.estadoServicio || 'N/D'}`,
     '',
+    `🛠 Último mantenimiento: ${e.ultimoMantenimiento || 'N/D'}`,
+    `🔥 Síntomas de calentamiento/ruido: ${e.sintomasMantenimiento || 'N/D'}`,
+    '',
     `🔁 Recomendación bot: ${e.recomendacion || 'N/D'}`
   ].join('\n');
 }
@@ -78,8 +113,8 @@ function buildInternalMessage(from, session) {
 async function sendInternalMessage(body) {
   try {
     await client.messages.create({
-      from: process.env.TWILIO_WHATSAPP_FROM,
-      to: OPERATOR_WHATSAPP,
+      from: process.env.TWILIO_WHATSAPP_FROM, // sandbox o número productivo
+      to: OPERATOR_WHATSAPP,                  // tu número: whatsapp:+50688998177
       body
     });
   } catch (err) {
@@ -87,65 +122,40 @@ async function sendInternalMessage(body) {
   }
 }
 
-// Webhook principal de WhatsApp
+// ---------- Webhook principal de WhatsApp ----------
+
 app.post('/whatsapp', async (req, res) => {
   const twiml = new MessagingResponse();
   const incomingMsg = cleanText(req.body.Body);
   const from = req.body.From;
 
-  const session = getSession(from);
+  let session = getSession(from);
 
-  // Si el usuario escribe "menu" o "reiniciar"
+  // Comando global para volver al menú
   if (/^menu$/i.test(incomingMsg) || /^reiniciar$/i.test(incomingMsg)) {
     resetSession(from);
-    const twiml2 = new MessagingResponse();
-    twiml2.message(
-      '👋 Hola, soy el asistente virtual de *MPC JSALA*.\n' +
-      'Te ayudo con mantenimiento y reparación de computadoras portátiles.\n\n' +
-      '🕐 Horario de atención con cita:\n' +
-      '• L–V: 4:00 p.m. – 9:00 p.m.\n' +
-      '• Sábado: 9:00 a.m. – 9:00 p.m.\n\n' +
-      'Elige una opción respondiendo con el número:\n' +
-      'const mainMenuText =
-      '📋 *Menú principal MPC JSALA*\n' +
-      'Elige una opción respondiendo solo con el número:\n\n' +
-      '1️⃣ Mantenimiento / limpieza de computadora\n' +
-      '2️⃣ Consulta técnica rápida\n' +
-      '3️⃣ Agendar cita en taller\n' +
-      '4️⃣ Estado de un servicio en curso\n' +
-      '5️⃣ Hablar con un asesor\n\n' +
-      '✳️ Puedes escribir *menu* en cualquier momento para volver aquí.';
+    session = getSession(from);
+    session.state = 'MAIN_MENU';
 
-    );
+    twiml.message(mainMenuText);
     res.writeHead(200, { 'Content-Type': 'text/xml' });
-    return res.end(twiml2.toString());
+    return res.end(twiml.toString());
   }
 
-  // Máquina de estados
+  // Máquina de estados principal
   switch (session.state) {
+    // Primera vez que escribe el cliente
     case 'WELCOME': {
-      // Mostrar menú de bienvenida
       session.state = 'MAIN_MENU';
-      twiml.message(
-        '👋 Hola, soy el asistente virtual de *MPC JSALA*.\n' +
-        'Te ayudo con *mantenimiento y reparación de computadoras portátiles*, soporte remoto y citas en taller.\n\n' +
-        '🕐 Horario de atención con cita:\n' +
-        '• L–V: 4:00 p.m. – 9:00 p.m.\n' +
-        '• Sábado: 9:00 a.m. – 9:00 p.m.\n\n' +
-        'Por favor elige una opción respondiendo con el número:\n' +
-        '1️⃣ Mantenimiento / limpieza de computadora\n' +
-        '2️⃣ Consulta técnica rápida\n' +
-        '3️⃣ Agendar cita en taller\n' +
-        '4️⃣ Estado de un servicio en curso\n' +
-        '5️⃣ Hablar con un asesor'
-      );
+      twiml.message(mainMenuText);
       break;
     }
 
+    // Menú principal
     case 'MAIN_MENU': {
-      if (!['1','2','3','4','5'].includes(incomingMsg)) {
+      if (!['1', '2', '3', '4', '5'].includes(incomingMsg)) {
         twiml.message(
-          'Por favor elige una opción válida:\n' +
+          'Por favor elige una opción válida respondiendo solo con el número:\n\n' +
           '1️⃣ Mantenimiento / limpieza de computadora\n' +
           '2️⃣ Consulta técnica rápida\n' +
           '3️⃣ Agendar cita en taller\n' +
@@ -167,15 +177,15 @@ app.post('/whatsapp', async (req, res) => {
         session.flow = 'Consulta técnica rápida';
         session.state = 'PERS_NAME';
         twiml.message(
-          'Genial, veamos tu *consulta técnica rápida*.\n' +
-          'Primero, ¿cuál es tu *nombre completo*?'
+          'Genial, veamos tu *consulta técnica rápida*.\n\n' +
+          '👉 ¿Cuál es tu *nombre completo*?'
         );
       } else if (incomingMsg === '3') {
         session.flow = 'Agendar cita en taller';
         session.state = 'PERS_NAME';
         twiml.message(
-          'Perfecto, agendemos una *cita en taller*.\n' +
-          'Para empezar, ¿cuál es tu *nombre completo*?'
+          'Perfecto, agendemos una *cita en taller*.\n\n' +
+          '👉 ¿Cuál es tu *nombre completo*?'
         );
       } else if (incomingMsg === '4') {
         session.flow = 'Estado de servicio en curso';
@@ -195,12 +205,12 @@ app.post('/whatsapp', async (req, res) => {
       break;
     }
 
-    // Recolector de datos personales (mismo flujo para varias opciones)
+    // ---------- Recolector de datos personales ----------
     case 'PERS_NAME': {
       session.personal.nombre = incomingMsg;
       session.state = 'PERS_PHONE';
       twiml.message(
-        'Gracias, ' + incomingMsg + '.\n' +
+        `Gracias, ${incomingMsg}.\n` +
         '👉 ¿Cuál es tu *número de teléfono de contacto*? (Si es este mismo, responde "mismo")'
       );
       break;
@@ -213,8 +223,9 @@ app.post('/whatsapp', async (req, res) => {
       }
       session.state = 'PERS_ZONE';
       twiml.message(
-        'Perfecto.\n' +
-        '👉 ¿En qué *distrito o zona* te encuentras? (Ej: Río Clao Centro, Golfito, Ciudad Neily, etc.)'
+        'Gracias.\n' +
+        '👉 ¿En qué *distrito o zona* te encuentras?\n' +
+        '(Ej: Río Claro Centro, Golfito, Ciudad Neily, Paso Canoas u otra zona cercana)'
       );
       break;
     }
@@ -222,7 +233,7 @@ app.post('/whatsapp', async (req, res) => {
       session.personal.zona = incomingMsg;
       session.state = 'PERS_EMAIL';
       twiml.message(
-        'Gracias.\n' +
+        'Perfecto.\n' +
         '👉 ¿Tienes un *correo electrónico* para enviarte información de tu servicio? (opcional, puedes responder "no")'
       );
       break;
@@ -244,7 +255,7 @@ app.post('/whatsapp', async (req, res) => {
     case 'PERS_SCHEDULE': {
       session.personal.horario = incomingMsg;
 
-      // Siguiente paso depende del flujo
+      // Próximo paso según el flujo
       if (session.flow === 'Consulta técnica rápida') {
         session.state = 'QUICK_QUESTION';
         twiml.message(
@@ -258,7 +269,7 @@ app.post('/whatsapp', async (req, res) => {
           '👉 Cuéntame brevemente qué necesitas: mantenimiento, reparación, consulta técnica, licencias, etc.'
         );
       } else {
-        // Mantenimiento y limpieza o Agendar cita
+        // Mantenimiento / limpieza o Agendar cita en taller
         session.state = 'TECH_EQUIPMENT';
         twiml.message(
           'Perfecto, ahora algunos datos de tu equipo 💻\n\n' +
@@ -268,38 +279,43 @@ app.post('/whatsapp', async (req, res) => {
       break;
     }
 
-    // Consulta técnica rápida
+    // ---------- Consulta técnica rápida ----------
     case 'QUICK_QUESTION': {
       session.extra.consulta = incomingMsg;
-      session.extra.recomendacion = 'Requiere revisión por asesor (consulta técnica rápida)';
-      // Enviar mensaje interno
+      session.extra.recomendacion =
+        'Requiere revisión por asesor (consulta técnica rápida).';
+
+      // Enviar mensaje interno al operador
       await sendInternalMessage(buildInternalMessage(from, session));
 
       twiml.message(
         '✅ Hemos recibido tu *consulta técnica*.\n' +
         'Un asesor de MPC JSALA revisará tu información y te responderá por este medio dentro del horario de atención.\n\n' +
-        'Si en cualquier momento deseas volver al menú principal, escribe *menu*.'
+        'Si deseas volver al menú principal, escribe *menu*.'
       );
+
       resetSession(from);
       break;
     }
 
-    // Hablar con asesor
+    // ---------- Hablar con asesor humano ----------
     case 'HUMAN_CONTEXT': {
       session.extra.consulta = incomingMsg;
-      session.extra.recomendacion = 'Derivar a asesor humano';
+      session.extra.recomendacion = 'Derivar a asesor humano.';
+
       await sendInternalMessage(buildInternalMessage(from, session));
 
       twiml.message(
         '🙋‍♂️ Listo, hemos registrado tu solicitud para hablar con un asesor.\n' +
         'Te contactaremos por este medio dentro del horario de atención.\n\n' +
-        'Si deseas volver al menú principal más adelante, escribe *menu*.'
+        'Si deseas volver al menú principal, escribe *menu*.'
       );
+
       resetSession(from);
       break;
     }
 
-    // Datos técnicos completos
+    // ---------- Datos técnicos completos (para mantenimiento y cita en taller) ----------
     case 'TECH_EQUIPMENT': {
       session.technical.equipo = incomingMsg;
       session.state = 'TECH_OS';
@@ -366,7 +382,6 @@ app.post('/whatsapp', async (req, res) => {
     case 'TECH_URGENCY': {
       session.technical.urgencia = incomingMsg;
 
-      // Para mantenimiento agregamos un par de preguntas extra
       if (session.flow === 'Mantenimiento y limpieza') {
         session.state = 'MAINT_LAST';
         twiml.message(
@@ -380,14 +395,13 @@ app.post('/whatsapp', async (req, res) => {
           '👉 ¿Qué *día y franja horaria* te gustaría para la cita? (Ej: Viernes después de las 6 p.m.)'
         );
       } else {
-        // Cualquier otro flujo que use los datos técnicos (por si amplías)
         session.state = 'SERVICE_TYPE_DECISION';
         twiml.message('Un momento, analizando el tipo de servicio más adecuado…');
       }
       break;
     }
 
-    // Extra mantenimiento
+    // ---------- Extra mantenimiento ----------
     case 'MAINT_LAST': {
       session.extra.ultimoMantenimiento = incomingMsg;
       session.state = 'MAINT_SYMPTOMS';
@@ -400,11 +414,13 @@ app.post('/whatsapp', async (req, res) => {
     case 'MAINT_SYMPTOMS': {
       session.extra.sintomasMantenimiento = incomingMsg;
       session.state = 'SERVICE_TYPE_DECISION';
-      twiml.message('Gracias, con eso ya casi terminamos. Analizando el tipo de servicio más adecuado…');
+      twiml.message(
+        'Gracias, con eso ya casi terminamos. Analizando el tipo de servicio más adecuado…'
+      );
       break;
     }
 
-    // Preferencia de cita (Agendar cita)
+    // ---------- Preferencia de cita (Agendar cita en taller) ----------
     case 'APPOINTMENT_PREF': {
       session.extra.preferenciaCita = incomingMsg;
       session.state = 'SERVICE_TYPE_DECISION';
@@ -412,7 +428,7 @@ app.post('/whatsapp', async (req, res) => {
       break;
     }
 
-    // Determinar tipo de servicio (remoto / taller) y cerrar
+    // ---------- Decisión del tipo de servicio + cierre ----------
     case 'SERVICE_TYPE_DECISION': {
       const desc = session.technical.descripcion || '';
       const remote = isRemoteCandidate(desc);
@@ -420,25 +436,31 @@ app.post('/whatsapp', async (req, res) => {
       if (remote) {
         session.extra.recomendacion =
           'Posible soporte remoto (activación licencias / software). Coordinar sesión remota o entrega en taller.';
+
         twiml.message(
-          '✅ Por la descripción, es posible que podamos ayudarte con *soporte remoto* (por ejemplo para activación de licencias de antivirus u Office, o ajustes de software).\n\n' +
-          'No brindamos servicio a domicilio, pero podemos coordinar una *sesión remota* o la *entrega de tu equipo en taller*.\n' +
+          '✅ Por la descripción, es posible que podamos ayudarte con *soporte remoto* ' +
+          '(por ejemplo para activación de licencias de antivirus u Office, o ajustes de software).\n\n' +
+          'No brindamos servicio a domicilio, pero podemos coordinar una *sesión remota* ' +
+          'o la *entrega de tu equipo en taller*.\n' +
           'Un asesor revisará tu caso y te confirmará la mejor opción.'
         );
       } else {
         session.extra.recomendacion =
           'Recomendado revisión en taller (probable problema de hardware u otro que requiere revisión física).';
+
         twiml.message(
-          '🔧 Por la descripción, lo más recomendable es una *revisión en taller*, ya que podría tratarse de un tema de hardware u otro problema que requiere revisión física.\n\n' +
-          'No brindamos servicio a domicilio, pero podemos coordinar la *entrega de tu equipo en el taller* y la revisión con cita.\n' +
+          '🔧 Por la descripción, lo más recomendable es una *revisión en taller*, ' +
+          'ya que podría tratarse de un tema de hardware u otro problema que requiere revisión física.\n\n' +
+          'No brindamos servicio a domicilio, pero podemos coordinar la *entrega de tu equipo en el taller* ' +
+          'y la revisión con cita.\n' +
           'Un asesor revisará tu caso y te indicará los siguientes pasos.'
         );
       }
 
-      // Enviar mensaje interno
+      // Enviar mensaje interno al operador con todos los datos
       await sendInternalMessage(buildInternalMessage(from, session));
 
-      // Mensaje de cierre específico
+      // Mensaje de cierre según el flujo
       if (session.flow === 'Mantenimiento y limpieza') {
         twiml.message(
           '🎉 ¡Listo! Hemos registrado tu solicitud de *mantenimiento y limpieza*.\n' +
@@ -463,9 +485,8 @@ app.post('/whatsapp', async (req, res) => {
       break;
     }
 
-    // Estado de servicio en curso
+    // ---------- Estado de servicio en curso ----------
     case 'STATUS_DATA': {
-      // Aquí vamos a ir concatenando info simple en un solo campo
       session.extra.estadoServicio = `Nombre: ${incomingMsg}`;
       session.state = 'STATUS_ORDER';
       twiml.message(
@@ -485,7 +506,9 @@ app.post('/whatsapp', async (req, res) => {
     }
     case 'STATUS_DATE': {
       session.extra.estadoServicio += ` | Fecha ingreso: ${incomingMsg}`;
-      session.extra.recomendacion = 'Consultar estado de servicio en taller y responder al cliente.';
+      session.extra.recomendacion =
+        'Consultar estado de servicio en taller y responder al cliente.';
+
       await sendInternalMessage(buildInternalMessage(from, session));
 
       twiml.message(
@@ -493,12 +516,13 @@ app.post('/whatsapp', async (req, res) => {
         'Un asesor revisará la información y te enviará una actualización por este medio.\n\n' +
         'Si deseas volver al menú principal, escribe *menu*.'
       );
+
       resetSession(from);
       break;
     }
 
+    // ---------- Falla / estado desconocido ----------
     default: {
-      // Estado no reconocido: reiniciar
       resetSession(from);
       twiml.message(
         'Ocurrió un pequeño inconveniente con la conversación. Vamos a empezar de nuevo 😊\n\n' +
@@ -512,9 +536,8 @@ app.post('/whatsapp', async (req, res) => {
   res.end(twiml.toString());
 });
 
+// ---------- Levantar servidor ----------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('MPC JSALA WhatsApp bot escuchando en puerto ' + PORT);
 });
-
-
