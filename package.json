@@ -1,29 +1,16 @@
 {
-  "name": "mpc-jsala-whatsapp-bot",
+  "name": "whatsapp-bot",
   "version": "1.0.0",
-  "description": "Chatbot de WhatsApp para MPC JSALA (mantenimiento, reparación y soporte remoto de computadoras portátiles) usando Twilio y Node.js.",
+  "description": "Simple Twilio WhatsApp echo bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node index.js"
   },
-  "keywords": [
-    "whatsapp",
-    "twilio",
-    "chatbot",
-    "nodejs",
-    "soporte tecnico",
-    "mpc-jsala"
-  ],
-  "author": "MPC JSALA",
-  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "body-parser": "^1.20.3",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.2",
-    "twilio": "^5.3.4"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.7"
+    "express": "^4.19.2",
+    "twilio": "^4.21.0"
   }
 }
