@@ -1,24 +1,21 @@
 {
-  "name": "mpc-jsala-whatsapp-bot-full",
+  "name": "mpc-jsala-bot",
   "version": "1.0.0",
-  "description": "MPC Jsala WhatsApp Bot - Twilio + OpenAI | Menú, precios, citas, multi-sucursal, admin",
+  "description": "Chatbot WhatsApp MPC Jsala en Render",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "NODE_ENV=development node index.js"
+    "start": "node index.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": "18.x"
   },
   "dependencies": {
-    "body-parser": "^1.20.2",
-    "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "body-parser": "^1.20.2",
+    "twilio": "^4.17.0",
     "lowdb": "^6.0.1",
     "nanoid": "^4.0.2",
-    "openai": "^4.10.0",
-    "twilio": "^4.17.0"
+    "openai": "^4.10.0"
   }
 }
-
 
