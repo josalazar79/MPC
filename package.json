@@ -1,20 +1,16 @@
 {
   "name": "mpc-jsala-bot",
   "version": "1.0.0",
-  "description": "Chatbot WhatsApp MPC Jsala en Render",
+  "description": "Chatbot WhatsApp MPC Jsala",
   "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "engines": {
-    "node": "18.x"
-  },
+  "scripts": { "start": "node index.js" },
+  "engines": { "node": "18.x" },
   "dependencies": {
     "express": "^4.19.2",
     "body-parser": "^1.20.2",
     "twilio": "^4.17.0",
     "nanoid": "^4.0.2",
-    "openai": "^4.10.0",
-    "fs-extra": "^11.2.0"
+    "fs-extra": "^11.2.0",
+    "openai": "^4.10.0"
   }
 }
