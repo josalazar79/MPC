@@ -1,16 +1,16 @@
 {
-  "name": "mpc-jsala-bot",
+  "name": "whatsapp-bot",
   "version": "1.0.0",
-  "description": "Chatbot WhatsApp MPC Jsala",
+  "description": "Simple Twilio WhatsApp echo bot",
   "main": "index.js",
-  "scripts": { "start": "node index.js" },
-  "engines": { "node": "18.x" },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "express": "^4.19.2",
-    "body-parser": "^1.20.2",
-    "twilio": "^4.17.0",
-    "nanoid": "^4.0.2",
-    "fs-extra": "^11.2.0",
-    "openai": "^4.10.0"
+    "twilio": "^4.21.0"
   }
 }
