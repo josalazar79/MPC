@@ -1,4 +1,6 @@
 // index.js
+require("dotenv").config(); // 👈 Carga variables de entorno desde .env
+
 const express = require("express");
 const twilio = require("twilio");
 const qs = require("qs");
@@ -10,6 +12,11 @@ app.use(express.urlencoded({ extended: false }));
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const fromWhatsAppNumber = process.env.TWILIO_WHATSAPP_FROM; // ej: "whatsapp:+14155238886"
+
+// Validación básica para evitar "username is required"
+if (!accountSid || !authToken) {
+  console.error("❌ Faltan TWILIO_ACCOUNT_SID o TWILIO_AUTH_TOKEN en el .env");
+}
 
 const client = twilio(accountSid, authToken);
 
@@ -202,7 +209,10 @@ app.post("/whatsapp", async (req, res) => {
         session.data.personal = {};
         session.data.technical = {};
         session.state = "ASK_NAME";
-        return replyTwiml(res, "Perfecto, vamos con una *consulta técnica rápida* 🛠️\n\nPrimero, ¿cuál es tu *nombre completo*?");
+        return replyTwiml(
+          res,
+          "Perfecto, vamos con una *consulta técnica rápida* 🛠️\n\nPrimero, ¿cuál es tu *nombre completo*?"
+        );
       }
 
       if (incoming === "2") {
@@ -259,10 +269,7 @@ app.post("/whatsapp", async (req, res) => {
       session.data.personal.correo =
         incoming.toUpperCase() === "NO" ? "" : incoming;
       session.state = "ASK_ZONE";
-      return replyTwiml(
-        res,
-        "¿En qué *zona o barrio* te encuentras?"
-      );
+      return replyTwiml(res, "¿En qué *zona o barrio* te encuentras?");
     }
 
     case "ASK_ZONE": {
@@ -357,7 +364,7 @@ app.post("/whatsapp", async (req, res) => {
         );
       }
 
-      // Guardamos el valor directamente (puedes mapear cada número a texto)
+      // Guardamos el valor directamente (si quieres, luego mapeamos cada número a texto)
       session.data.technical.sintoma = incoming;
       session.state = "ASK_DURATION";
       return replyTwiml(
@@ -410,7 +417,6 @@ app.post("/whatsapp", async (req, res) => {
           technical: session.data.technical,
         });
 
-        // No olvidamos el return
         return;
       }
 
@@ -538,5 +544,5 @@ app.post("/whatsapp", async (req, res) => {
 // 🚀 Arranque del servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`WhatsApp bot escuchando en puerto ${PORT}`);
+  console.log(`WhatsApp bot de MPC Jsala escuchando en puerto ${PORT}`);
 });
