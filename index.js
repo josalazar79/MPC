@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const { MessagingResponse } = require('twilio').twiml;
@@ -266,3 +265,4 @@ app.get('/admin/citas', async (req, res) => {
 // ===== SERVIDOR =====
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ MPC JSALA BOT EJECUTANDO EN PUERTO ${PORT}`));
+
