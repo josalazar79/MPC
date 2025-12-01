@@ -1,7 +1,7 @@
 // index.js
 
 const express = require("express");
-const twilio = require("twilio");
+const twilio = require("twilio").twiml;
 const qs = require("qs");
 
 const app = express();
@@ -545,4 +545,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`WhatsApp bot de MPC Jsala escuchando en puerto ${PORT}`);
 });
+
 
