@@ -106,11 +106,16 @@ app.post('/whatsapp', async (req, res) => {
       '• L–V: 4:00 p.m. – 9:00 p.m.\n' +
       '• Sábado: 9:00 a.m. – 9:00 p.m.\n\n' +
       'Elige una opción respondiendo con el número:\n' +
+      'const mainMenuText =
+      '📋 *Menú principal MPC JSALA*\n' +
+      'Elige una opción respondiendo solo con el número:\n\n' +
       '1️⃣ Mantenimiento / limpieza de computadora\n' +
       '2️⃣ Consulta técnica rápida\n' +
       '3️⃣ Agendar cita en taller\n' +
       '4️⃣ Estado de un servicio en curso\n' +
-      '5️⃣ Hablar con un asesor'
+      '5️⃣ Hablar con un asesor\n\n' +
+      '✳️ Puedes escribir *menu* en cualquier momento para volver aquí.';
+
     );
     res.writeHead(200, { 'Content-Type': 'text/xml' });
     return res.end(twiml2.toString());
@@ -511,4 +516,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('MPC JSALA WhatsApp bot escuchando en puerto ' + PORT);
 });
+
 
