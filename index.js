@@ -1,5 +1,4 @@
 // index.js
-require("dotenv").config(); // 👈 Carga variables de entorno desde .env
 
 const express = require("express");
 const twilio = require("twilio");
@@ -546,3 +545,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`WhatsApp bot de MPC Jsala escuchando en puerto ${PORT}`);
 });
+
