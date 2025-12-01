@@ -9,30 +9,25 @@ const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-// ==== ARCHIVOS ====
+// ==== DB SIMPLE ====
 const DB_FILE = 'db.json';
 
-// ==== INICIALIZAR BD ====
 async function loadDB() {
   if (!(await fs.pathExists(DB_FILE))) {
-    const data = {
+    await fs.writeJSON(DB_FILE, {
       sessions: {},
       appointments: [],
-      prices: {
-        reparacion_minima: 12000,
-        mantenimiento: 15000
-      }
-    };
-    await fs.writeJSON(DB_FILE, data, { spaces: 2 });
+      prices: { reparacion_minima: 12000, mantenimiento: 15000 }
+    }, { spaces: 2 });
   }
-  return await fs.readJSON(DB_FILE);
+  return fs.readJSON(DB_FILE);
 }
 
-async function saveDB(data) {
-  await fs.writeJSON(DB_FILE, data, { spaces: 2 });
+async function saveDB(db) {
+  await fs.writeJSON(DB_FILE, db, { spaces: 2 });
 }
 
-// ==== IA ====
+// ==== IA OPCIONAL ====
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -41,23 +36,22 @@ const openai = process.env.OPENAI_API_KEY
 function menu() {
   return `
 🖥️ *MPC JSALA*
-Mantenimiento de computadoras
 
-1️⃣ Reparación
-2️⃣ Mantenimiento
+1️⃣ Reparación de computadoras
+2️⃣ Mantenimiento de computadora
 3️⃣ Otros servicios
-4️⃣ Cita técnica
+4️⃣ Agendar cita
 5️⃣ Precios
 
 Escribe MENU para volver.
 `;
 }
 
-function precios(prices) {
+function precios(p) {
   return `
 💰 *PRECIOS*
-🔧 Reparación mínima: ₡${prices.reparacion_minima}
-🧼 Mantenimiento: ₡${prices.mantenimiento}
+🔧 Reparación mínima: ₡${p.reparacion_minima}
+🧼 Mantenimiento: ₡${p.mantenimiento}
 `;
 }
 
@@ -76,6 +70,7 @@ app.post('/whatsapp', async (req, res) => {
 
   const db = await loadDB();
 
+  // NUEVO USUARIO
   if (!db.sessions[from]) {
     db.sessions[from] = { step: 'menu', data: {} };
     await saveDB(db);
@@ -91,7 +86,7 @@ app.post('/whatsapp', async (req, res) => {
     return responder(res, menu());
   }
 
-  // ==== MENU ====
+  // MENU
   if (session.step === 'menu') {
     switch (msg) {
       case '1':
@@ -100,9 +95,9 @@ app.post('/whatsapp', async (req, res) => {
         return responder(res, '🔧 Describe el problema de tu computadora:');
 
       case '2':
-        session.step = 'mantenimiento';
+        session.step = 'mant_opcion';
         await saveDB(db);
-        return responder(res, '🧼 ¿Deseas PRECIO o AGENDAR?');
+        return responder(res, '🧼 Escribe PRECIO o AGENDAR');
 
       case '3':
         session.step = 'otros';
@@ -112,7 +107,7 @@ app.post('/whatsapp', async (req, res) => {
       case '4':
         session.step = 'cita_nombre';
         await saveDB(db);
-        return responder(res, '👤 Tu nombre completo por favor:');
+        return responder(res, '👤 Tu nombre completo para la cita:');
 
       case '5':
         return responder(res, precios(db.prices));
@@ -122,7 +117,7 @@ app.post('/whatsapp', async (req, res) => {
     }
   }
 
-  // ==== REPARACIÓN ====
+  // REPARACIÓN
   if (session.step === 'rep_problema') {
     session.data.problema = raw;
     session.step = 'rep_nombre';
@@ -131,36 +126,37 @@ app.post('/whatsapp', async (req, res) => {
   }
 
   if (session.step === 'rep_nombre') {
-    session.data.nombre = raw;
     session.step = 'menu';
     await saveDB(db);
-    return responder(res, `✅ Caso registrado\n\nNombre: ${session.data.nombre}\nProblema: ${session.data.problema}\n\n${menu()}`);
+    return responder(res,
+      `✅ Solicitud registrada\n\nNombre: ${raw}\nProblema: ${session.data.problema}\n\n${menu()}`
+    );
   }
 
-  // ==== MANTENIMIENTO ====
-  if (session.step === 'mantenimiento') {
+  // MANTENIMIENTO
+  if (session.step === 'mant_opcion') {
     if (msg.includes('precio')) return responder(res, precios(db.prices));
     if (msg.includes('agendar')) {
       session.step = 'cita_nombre';
       await saveDB(db);
-      return responder(res, '👤 Tu nombre para la cita:');
+      return responder(res, '👤 Nombre del cliente:');
     }
     return responder(res, 'Escribe PRECIO o AGENDAR');
   }
 
-  // ==== OTROS ====
+  // OTROS
   if (session.step === 'otros') {
     session.step = 'menu';
     await saveDB(db);
-    return responder(res, '✅ Mensaje recibido. Te contactaremos pronto.\n\n' + menu());
+    return responder(res, '✅ Mensaje recibido. Te contactaremos.\n\n' + menu());
   }
 
-  // ==== CITAS ====
+  // CITAS
   if (session.step === 'cita_nombre') {
     session.data.nombre = raw;
     session.step = 'cita_fecha';
     await saveDB(db);
-    return responder(res, '📆 Fecha deseada:');
+    return responder(res, '📅 Fecha deseada:');
   }
 
   if (session.step === 'cita_fecha') {
@@ -175,21 +171,21 @@ app.post('/whatsapp', async (req, res) => {
       id: nanoid(6),
       nombre: session.data.nombre,
       fecha: session.data.fecha,
-      hora: raw,
-      creado: new Date()
+      hora: raw
     };
-
     db.appointments.push(cita);
     session.step = 'menu';
     session.data = {};
     await saveDB(db);
 
-    return responder(res, `✅ CITA AGENDADA\nID: ${cita.id}\nCliente: ${cita.nombre}\nFecha: ${cita.fecha} ${cita.hora}\n\n${menu()}`);
+    return responder(res,
+      `✅ CITA CONFIRMADA\nID: ${cita.id}\n${cita.nombre}\n${cita.fecha} ${cita.hora}\n\n${menu()}`
+    );
   }
 
   return responder(res, menu());
 });
 
-// ==== INICIAR ====
+// SERVER
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ BOT CORRIENDO EN PUERTO ${PORT}`));
+app.listen(PORT, () => console.log(`✅ MPC JSALA BOT ACTIVO EN PUERTO ${PORT}`));
